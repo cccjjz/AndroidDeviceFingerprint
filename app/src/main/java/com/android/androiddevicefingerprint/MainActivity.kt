@@ -2,25 +2,29 @@ package com.android.androiddevicefingerprint
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.provider.Settings
-import android.net.Uri
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.android.androiddevicefingerprint.databinding.ActivityMainBinding
-import java.lang.reflect.Field
-import android.util.ArrayMap
-import android.os.Bundle as AndroidBundle
-import android.util.Log
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: DeviceFingerprintAdapter
+    
+    // Manager instances
+    private lateinit var deviceInfoManager: DeviceInfoManager
+    private lateinit var androidIdManager: AndroidIdManager
+    private lateinit var macAddressManager: MacAddressManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Initialize managers
+        deviceInfoManager = DeviceInfoManager(this)
+        androidIdManager = AndroidIdManager(this)
+        macAddressManager = MacAddressManager(this)
 
         setupRecyclerView()
         loadDeviceFingerprints()
@@ -37,43 +41,42 @@ class MainActivity : AppCompatActivity() {
     private fun loadDeviceFingerprints() {
         val fingerprints = mutableListOf<DeviceFingerprint>()
         
-        // Method 1: Basic Android ID retrieval
-        val androidId1 = getAndroidIdMethod1()
+        // Device Information
+        fingerprints.addAll(loadDeviceInfo())
+        
+        // Android ID Information
+        fingerprints.addAll(loadAndroidIdInfo())
+        
+        // MAC Address Information
+        fingerprints.addAll(loadMacAddressInfo())
+        
+        // DRM ID Information
+        val drmId = getDrmIdNative()
         fingerprints.add(
             DeviceFingerprint(
-                name = "Android ID (Method 1)",
-                value = androidId1 ?: "Unable to retrieve",
-                description = "Settings.Secure.getString() basic method"
+                name = "DRM ID (Widevine)",
+                value = drmId,
+                description = "DRM device unique ID using Widevine (Base64 encoded)"
             )
         )
 
-        // Method 2: Get cache through reflection
-        val androidId2 = getAndroidIdMethod2()
+        // System Files Information (Important Device Fingerprints)
+        val systemFilesInfo = getSystemFilesInfoNative()
         fingerprints.add(
             DeviceFingerprint(
-                name = "Android ID (Method 2)",
-                value = androidId2 ?: "Unable to retrieve",
-                description = "Get Settings cache through reflection"
+                name = "System Files Info",
+                value = systemFilesInfo,
+                description = "Boot ID, UUID, CID and other critical device fingerprints"
             )
         )
 
-        // Method 3: Get through ContentResolver.call
-        val androidId3 = getAndroidIdMethod3()
+        // Kernel Files Information
+        val kernelFilesInfo = getKernelFilesInfoNative()
         fingerprints.add(
             DeviceFingerprint(
-                name = "Android ID (Method 3)",
-                value = androidId3 ?: "Unable to retrieve",
-                description = "ContentResolver.call() method"
-            )
-        )
-
-        // Method 4: Query through content command
-        val androidId4 = getAndroidIdMethod4()
-        fingerprints.add(
-            DeviceFingerprint(
-                name = "Android ID (Method 4)",
-                value = androidId4 ?: "Unable to retrieve",
-                description = "Query through content command"
+                name = "Kernel Files Info",
+                value = kernelFilesInfo,
+                description = "Build.prop and system files information using custom file reader"
             )
         )
 
@@ -87,148 +90,123 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        // Comparison result
-        val comparisonResult = compareAndroidIds(listOf(androidId1, androidId2, androidId3, androidId4))
+        adapter.updateFingerprints(fingerprints)
+    }
+
+    private fun loadDeviceInfo(): List<DeviceFingerprint> {
+        return listOf(
+            DeviceFingerprint(
+                name = "Serial Number",
+                value = deviceInfoManager.getSerialNumber(),
+                description = "Device serial number"
+            ),
+            DeviceFingerprint(
+                name = "IMEI",
+                value = deviceInfoManager.getImei(),
+                description = "International Mobile Equipment Identity"
+            ),
+            DeviceFingerprint(
+                name = "IMSI",
+                value = deviceInfoManager.getImsi(),
+                description = "International Mobile Subscriber Identity"
+            ),
+            DeviceFingerprint(
+                name = "ICCID",
+                value = deviceInfoManager.getIccid(),
+                description = "Integrated Circuit Card Identifier"
+            ),
+            DeviceFingerprint(
+                name = "Line1Number",
+                value = deviceInfoManager.getLine1Number(),
+                description = "Phone number of line 1"
+            ),
+            DeviceFingerprint(
+                name = "Device Model",
+                value = deviceInfoManager.getDeviceModel(),
+                description = "Device manufacturer and model"
+            ),
+            DeviceFingerprint(
+                name = "Android Version",
+                value = deviceInfoManager.getAndroidVersion(),
+                description = "Android version and API level"
+            ),
+            DeviceFingerprint(
+                name = "Carrier Info",
+                value = deviceInfoManager.getCarrierInfo(),
+                description = "Network carrier information"
+            )
+        )
+    }
+
+    private fun loadAndroidIdInfo(): List<DeviceFingerprint> {
+        val androidIds = androidIdManager.getAllAndroidIds()
+        
+        val fingerprints = mutableListOf<DeviceFingerprint>()
+        
+        // Add individual Android ID methods
+        val methodNames = listOf(
+            "Settings.Secure.getString() basic method",
+            "Get Settings cache through reflection",
+            "ContentResolver.call() method",
+            "Query through content command"
+        )
+        
+        androidIds.forEachIndexed { index, androidId ->
+            fingerprints.add(
+                DeviceFingerprint(
+                    name = "Android ID (Method ${index + 1})",
+                    value = androidId ?: "Unable to retrieve",
+                    description = methodNames[index]
+                )
+            )
+        }
+        
+        // Add comparison result
+        val comparisonResult = androidIdManager.compareAndroidIds(androidIds)
         fingerprints.add(
             DeviceFingerprint(
-                name = "Tamper Detection Result",
+                name = "Android ID Tamper Detection",
                 value = comparisonResult,
                 description = "Comparison result of four methods, different values may indicate tampering"
             )
         )
-
-        adapter.updateFingerprints(fingerprints)
+        
+        return fingerprints
     }
 
-    /**
-     * Method 1: Basic Android ID retrieval
-     */
-    private fun getAndroidIdMethod1(): String? {
-        return try {
-            Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    /**
-     * Method 2: Get Settings cache through reflection
-     */
-    private fun getAndroidIdMethod2(): String? {
-        return try {
-            val sNameValueCache: Field = Settings.Secure::class.java.getDeclaredField("sNameValueCache")
-            sNameValueCache.isAccessible = true
-            val sLockSettings = sNameValueCache.get(null)
-            val fieldmValues: Field = sLockSettings.javaClass.getDeclaredField("mValues")
-            fieldmValues.isAccessible = true
-            @Suppress("UNCHECKED_CAST")
-            val mValues = fieldmValues.get(sLockSettings) as ArrayMap<String, String>
-            mValues["android_id"]
-        } catch (e: Throwable) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    /**
-     * Method 3: Get through ContentResolver.call
-     */
-    private fun getAndroidIdMethod3(): String? {
-        return try {
-            val callResult = contentResolver.call(
-                Uri.parse("content://settings/secure"), 
-                "GET_secure", 
-                "android_id", 
-                AndroidBundle()
+    private fun loadMacAddressInfo(): List<DeviceFingerprint> {
+        val macAddresses = macAddressManager.getAllMacAddresses()
+        
+        val fingerprints = mutableListOf<DeviceFingerprint>()
+        
+        // Add individual MAC address methods
+        val methodNames = listOf(
+            "Get MAC address using WifiManager",
+            "Get MAC address using NetworkInterface",
+            "Get MAC addresses from all network interfaces"
+        )
+        
+        macAddresses.forEachIndexed { index, macAddress ->
+            fingerprints.add(
+                DeviceFingerprint(
+                    name = "MAC Address (Method ${index + 1})",
+                    value = macAddress ?: "Unable to retrieve",
+                    description = methodNames[index]
+                )
             )
-            callResult?.getString("value")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    /**
-     * Method 4: Query through content command
-     * Note: This method executes shell command to get Android ID
-     */
-    private fun getAndroidIdMethod4(): String? {
-        return try {
-            Log.d("MainActivity", "Executing content command...")
-            val process = Runtime.getRuntime().exec("content query --uri content://settings/secure --where \"name='android_id'\"")
-            
-            // Wait for process to complete
-            val exitCode = process.waitFor()
-            Log.d("MainActivity", "Process exit code: $exitCode")
-            
-            val inputStream = process.inputStream
-            val reader = inputStream.bufferedReader()
-            val result = reader.readText()
-            reader.close()
-            inputStream.close()
-            
-            Log.d("MainActivity", "Raw result: $result")
-            
-            // Parse the result to extract android_id value
-            val lines = result.split("\n")
-            Log.d("MainActivity", "Total lines: ${lines.size}")
-            
-            for (line in lines) {
-                Log.d("MainActivity", "Line: $line")
-                if (line.contains("android_id")) {
-                    Log.d("MainActivity", "Found android_id line: $line")
-                    val parts = line.split(",")
-                    for (part in parts) {
-                        Log.d("MainActivity", "Part: $part")
-                        if (part.contains("value=")) {
-                            val value = part.substringAfter("value=").trim()
-                            Log.d("MainActivity", "Extracted value: $value")
-                            return value
-                        }
-                    }
-                }
-            }
-            "Unable to parse result"
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error in method 4", e)
-            e.printStackTrace()
-            "Command execution failed: ${e.message}"
-        }
-    }
-
-    /**
-     * Compare Android IDs obtained by four methods
-     */
-    private fun compareAndroidIds(ids: List<String?>): String {
-        val validIds = ids.filterNotNull().filter { it.isNotEmpty() }
-        
-        if (validIds.isEmpty()) {
-            return "All methods failed to retrieve Android ID"
         }
         
-        if (validIds.size == 1) {
-            return "Only one method succeeded, unable to compare"
-        }
+        // Add comparison result
+        val comparisonResult = macAddressManager.compareMacAddresses(macAddresses)
+        fingerprints.add(
+            DeviceFingerprint(
+                name = "MAC Address Comparison",
+                value = comparisonResult,
+                description = "Comparison of different MAC address retrieval methods"
+            )
+        )
         
-        val uniqueIds = validIds.distinct()
-        return if (uniqueIds.size == 1) {
-            "✅ All methods retrieved consistent Android ID, no tampering detected"
-        } else {
-            "⚠️ Inconsistent Android ID detected, possible tampering!\nDifferent values: ${uniqueIds.joinToString(", ")}"
-        }
-    }
-
-    /**
-     * Get file system information using native methods
-     */
-    private fun getFileSystemInfo(): String {
-        return try {
-            getFileSystemInfoNative()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error getting file system info", e)
-            "Failed to get file system information: ${e.message}"
-        }
+        return fingerprints
     }
 
     /**
@@ -241,6 +219,21 @@ class MainActivity : AppCompatActivity() {
      * Native method to get file system information
      */
     external fun getFileSystemInfoNative(): String
+
+    /**
+     * Native method to get DRM ID
+     */
+    external fun getDrmIdNative(): String
+
+    /**
+     * Native method to get kernel files information
+     */
+    external fun getKernelFilesInfoNative(): String
+
+    /**
+     * Native method to get system files information
+     */
+    external fun getSystemFilesInfoNative(): String
 
     companion object {
         // Used to load the 'androiddevicefingerprint' library on application startup.
