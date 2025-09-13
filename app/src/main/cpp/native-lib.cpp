@@ -18,7 +18,7 @@ Java_com_android_androiddevicefingerprint_MainActivity_stringFromJNI(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_android_androiddevicefingerprint_MainActivity_getFileSystemInfo(
+Java_com_android_androiddevicefingerprint_MainActivity_getFileSystemInfoNative(
         JNIEnv* env,
         jobject /* this */) {
     
