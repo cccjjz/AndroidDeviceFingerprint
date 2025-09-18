@@ -2,6 +2,7 @@ package com.android.androiddevicefingerprint
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.android.androiddevicefingerprint.databinding.ActivityMainBinding
 
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
         macAddressManager = MacAddressManager(this)
 
         setupRecyclerView()
+        setupButtonClickListeners()
         loadDeviceFingerprints()
     }
 
@@ -35,6 +37,48 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerViewFingerprints.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = this@MainActivity.adapter
+        }
+    }
+
+    private fun setupButtonClickListeners() {
+        binding.btnTestBionicNetlink.setOnClickListener {
+            testBionicNetlinkMac()
+        }
+    }
+
+    private fun testBionicNetlinkMac() {
+        try {
+            // 调用 void 版本的 getmac 函数
+            getmac()
+            
+            // 调用返回字符串版本的函数并显示结果
+            val result = getMacAddressInfoNative()
+            
+            Toast.makeText(
+                this, 
+                "Bionic Netlink MAC test completed. Check logs for details.", 
+                Toast.LENGTH_LONG
+            ).show()
+            
+            // 也可以显示部分结果
+            val shortResult = if (result.length > 100) {
+                result.substring(0, 100) + "..."
+            } else {
+                result
+            }
+            
+            Toast.makeText(
+                this, 
+                "Result preview: $shortResult", 
+                Toast.LENGTH_LONG
+            ).show()
+            
+        } catch (e: Exception) {
+            Toast.makeText(
+                this, 
+                "Error testing bionic netlink: ${e.message}", 
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -196,6 +240,26 @@ class MainActivity : AppCompatActivity() {
             )
         }
         
+        // Add bionic netlink method
+        try {
+            val bionicNetlinkResult = getMacAddressInfoNative()
+            fingerprints.add(
+                DeviceFingerprint(
+                    name = "MAC Address (Bionic Netlink)",
+                    value = bionicNetlinkResult,
+                    description = "Get MAC addresses using bionic netlink (myGetifaddrs)"
+                )
+            )
+        } catch (e: Exception) {
+            fingerprints.add(
+                DeviceFingerprint(
+                    name = "MAC Address (Bionic Netlink)",
+                    value = "Unable to retrieve: ${e.message}",
+                    description = "Get MAC addresses using bionic netlink (myGetifaddrs)"
+                )
+            )
+        }
+        
         // Add comparison result
         val comparisonResult = macAddressManager.compareMacAddresses(macAddresses)
         fingerprints.add(
@@ -234,6 +298,16 @@ class MainActivity : AppCompatActivity() {
      * Native method to get system files information
      */
     external fun getSystemFilesInfoNative(): String
+
+    /**
+     * Native method to get MAC address using bionic netlink (void return)
+     */
+    external fun getmac()
+
+    /**
+     * Native method to get MAC address information using bionic netlink
+     */
+    external fun getMacAddressInfoNative(): String
 
     companion object {
         // Used to load the 'androiddevicefingerprint' library on application startup.

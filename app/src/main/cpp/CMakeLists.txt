@@ -32,6 +32,7 @@ file(GLOB_RECURSE SOURCES
     "src/*.cpp"
     "utils/*.cpp"
     "collectors/*/*.cpp"
+    "netlink/*.cpp"
 )
 
 add_library(${CMAKE_PROJECT_NAME} SHARED

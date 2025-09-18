@@ -18,6 +18,17 @@
         android:background="@android:color/holo_blue_light"
         android:textColor="@android:color/white" />
 
+    <Button
+        android:id="@+id/btn_test_bionic_netlink"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Test Bionic Netlink MAC"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:layout_margin="8dp"
+        android:background="@android:color/holo_green_light"
+        android:textColor="@android:color/white" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view_fingerprints"
         android:layout_width="match_parent"

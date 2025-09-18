@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 CommonCollector::CommonCollector(JNIEnv* env) : m_env(env) {
 }
