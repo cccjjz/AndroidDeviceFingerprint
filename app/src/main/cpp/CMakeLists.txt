@@ -24,9 +24,19 @@ project("androiddevicefingerprint")
 # System.loadLibrary() and pass the name of the library defined here;
 # for GameActivity/NativeActivity derived applications, the same library name must be
 # used in the AndroidManifest.xml file.
+# 设置包含目录
+include_directories(include)
+
+# 收集所有源文件
+file(GLOB_RECURSE SOURCES
+    "src/*.cpp"
+    "utils/*.cpp"
+    "collectors/*/*.cpp"
+)
+
 add_library(${CMAKE_PROJECT_NAME} SHARED
         # List C/C++ source files with relative paths to this CMakeLists.txt.
-        native-lib.cpp)
+        ${SOURCES})
 
 # Specifies libraries CMake should link to your target library. You
 # can link libraries from various origins, such as libraries defined in this
